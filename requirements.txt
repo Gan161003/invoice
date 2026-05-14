@@ -7,4 +7,3 @@ pytesseract
 Pillow
 openpyxl
 xlsxwriter
-poppler-utils
