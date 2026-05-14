@@ -8,3 +8,5 @@ openpyxl
 xlsxwriter
 numpy
 opencv-python-headless
+python-dateutil
+rapidfuzz
