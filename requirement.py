@@ -1,0 +1,10 @@
+streamlit
+pandas
+pdf2image
+paddleocr
+paddlepaddle
+pytesseract
+Pillow
+openpyxl
+xlsxwriter
+poppler-utils
