@@ -3,7 +3,8 @@ pandas
 pdf2image
 paddleocr
 paddlepaddle
-pytesseract
-Pillow
+pillow
 openpyxl
 xlsxwriter
+numpy
+opencv-python-headless
