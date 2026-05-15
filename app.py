@@ -1,177 +1,108 @@
-# invoice_processing.py
+# app.py
 
-import re
-import fitz
-import pdfplumber
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+
+from invoice_processing import (
+    extract_text_from_pdf,
+    extract_invoice_data
+)
 
 # =====================================================
-# PDF TEXT EXTRACTION
+# PAGE CONFIG
 # =====================================================
 
-def extract_text_from_pdf(pdf_file):
+st.set_page_config(
+    page_title="Invoice Extraction App",
+    layout="wide"
+)
 
-    text = ""
+st.title("📄 Invoice Data Extraction")
 
-    # Read PDF bytes
-    pdf_bytes = pdf_file.read()
+st.write("Upload one or multiple system-generated invoice PDFs")
 
-    # =========================================
-    # METHOD 1 - PYMUPDF
-    # =========================================
+# =====================================================
+# FILE UPLOADER
+# =====================================================
 
-    try:
+uploaded_files = st.file_uploader(
+    "Upload Invoice PDFs",
+    type=["pdf"],
+    accept_multiple_files=True
+)
 
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+# =====================================================
+# PROCESS FILES
+# =====================================================
 
-        for page in doc:
+if uploaded_files:
 
-            text += page.get_text()
+    all_data = []
 
-    except:
-        pass
+    progress = st.progress(0)
 
-    # =========================================
-    # METHOD 2 - PDFPLUMBER FALLBACK
-    # =========================================
+    for index, file in enumerate(uploaded_files):
 
-    if len(text.strip()) < 20:
+        st.write(f"Processing: {file.name}")
 
         try:
 
-            pdf_file.seek(0)
+            # Extract text from PDF
+            text = extract_text_from_pdf(file)
 
-            with pdfplumber.open(pdf_file) as pdf:
+            # Extract invoice fields
+            data = extract_invoice_data(text)
 
-                for page in pdf.pages:
+            # Add filename
+            data["File Name"] = file.name
 
-                    page_text = page.extract_text()
+            # Append result
+            all_data.append(data)
 
-                    if page_text:
-                        text += page_text + "\n"
+        except Exception as e:
 
-        except:
-            pass
+            st.error(f"Error processing {file.name}: {str(e)}")
 
-    return text
+        progress.progress((index + 1) / len(uploaded_files))
 
+    # =====================================================
+    # CREATE DATAFRAME
+    # =====================================================
 
-# =====================================================
-# FIELD EXTRACTION
-# =====================================================
+    if all_data:
 
-def extract_invoice_data(text):
+        df = pd.DataFrame(all_data)
 
-    data = {}
+        st.success("Invoices Processed Successfully")
 
-    # =========================================
-    # INVOICE NUMBER
-    # =========================================
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
 
-    invoice_patterns = [
+        # =====================================================
+        # EXCEL DOWNLOAD
+        # =====================================================
 
-        r"Invoice\s*No[:\-]?\s*([A-Z0-9\-\/]+)",
-        r"Invoice\s*#[:\-]?\s*([A-Z0-9\-\/]+)",
-        r"Inv\s*No[:\-]?\s*([A-Z0-9\-\/]+)"
+        output = BytesIO()
 
-    ]
+        with pd.ExcelWriter(
+            output,
+            engine="xlsxwriter"
+        ) as writer:
 
-    invoice_no = ""
+            df.to_excel(
+                writer,
+                index=False,
+                sheet_name="Invoices"
+            )
 
-    for pattern in invoice_patterns:
+        excel_data = output.getvalue()
 
-        match = re.search(pattern, text, re.IGNORECASE)
-
-        if match:
-
-            invoice_no = match.group(1)
-
-            break
-
-    # =========================================
-    # DATE
-    # =========================================
-
-    date_patterns = [
-
-        r"\b\d{2}/\d{2}/\d{4}\b",
-        r"\b\d{2}-\d{2}-\d{4}\b",
-        r"\b\d{2}\.\d{2}\.\d{2024}\b"
-
-    ]
-
-    invoice_date = ""
-
-    for pattern in date_patterns:
-
-        match = re.search(pattern, text)
-
-        if match:
-
-            invoice_date = match.group(0)
-
-            break
-
-    # =========================================
-    # GST NUMBER
-    # =========================================
-
-    gst_pattern = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z0-9]\b"
-
-    gst_match = re.search(gst_pattern, text)
-
-    gst_number = gst_match.group(0) if gst_match else ""
-
-    # =========================================
-    # TOTAL AMOUNT
-    # =========================================
-
-    amount_patterns = [
-
-        r"Grand\s*Total[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
-        r"Total\s*Amount[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
-        r"Invoice\s*Value[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
-        r"Net\s*Amount[:\-]?\s*₹?\s*([\d,]+\.\d{2})"
-
-    ]
-
-    total_amount = ""
-
-    for pattern in amount_patterns:
-
-        match = re.search(pattern, text, re.IGNORECASE)
-
-        if match:
-
-            total_amount = match.group(1)
-
-            break
-
-    # =========================================
-    # VENDOR NAME
-    # =========================================
-
-    lines = text.split("\n")
-
-    vendor_name = ""
-
-    for line in lines[:10]:
-
-        line = line.strip()
-
-        if len(line) > 5:
-
-            vendor_name = line
-
-            break
-
-    # =========================================
-    # STORE DATA
-    # =========================================
-
-    data["Vendor Name"] = vendor_name
-    data["Invoice Number"] = invoice_no
-    data["Invoice Date"] = invoice_date
-    data["GST Number"] = gst_number
-    data["Total Amount"] = total_amount
-
-    return data
+        st.download_button(
+            label="📥 Download Excel",
+            data=excel_data,
+            file_name="invoice_output.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
