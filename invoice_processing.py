@@ -113,6 +113,7 @@ def extract_invoice_data(text):
     invoice_patterns = [
 
         r"Invoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)",
+        r"Invoice\s*Num\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)",
         r"Invoice\s*Number\s*[:\-]?\s*([A-Z0-9\/\-]+)",
         r"Inv\s*No\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)"
 
@@ -130,6 +131,7 @@ def extract_invoice_data(text):
     po_patterns = [
 
         r"PO\s*No\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)",
+        r"PO\s*Num\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)",
         r"PO\s*Number\s*[:\-]?\s*([A-Z0-9\/\-]+)",
         r"Purchase\s*Order\s*No\.?\s*[:\-]?\s*([A-Z0-9\/\-]+)"
 
@@ -212,14 +214,15 @@ def extract_invoice_data(text):
 
     # =================================================
     # TOTAL AMOUNT WITH TAX
-    # =================================================
+    # =================================================Total Payable (A+B)
 
     total_patterns = [
 
         r"Grand\s*Total\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
         r"Invoice\s*Value\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
         r"Net\s*Amount\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
-        r"Total\s*Amount\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})"
+        r"Total\s*Amount\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
+        r"Total\s*Payable\s*[:\-]?\s*₹?\s*([\d,]+\.\d{2})"
 
     ]
 
