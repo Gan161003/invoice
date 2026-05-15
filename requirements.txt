@@ -1,11 +1,6 @@
 streamlit
 pandas
-pdf2image
-paddleocr
-paddlepaddle
-pillow
+pymupdf
+pdfplumber
 openpyxl
 xlsxwriter
-numpy
-opencv-python-headless
-pdfplumber
