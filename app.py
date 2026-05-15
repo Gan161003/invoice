@@ -2,97 +2,95 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-from invoice_processing import process_invoice_pdfs
+from invoice_processing import (
+    extract_text_from_pdf,
+    extract_text_from_image,
+    extract_invoice_data
+)
 
-# =========================================================
+from PIL import Image
+
+# =========================================
 # PAGE CONFIG
-# =========================================================
+# =========================================
 
 st.set_page_config(
-    page_title="AI Invoice OCR",
+    page_title="Invoice Extraction App",
     layout="wide"
 )
 
-# =========================================================
-# TITLE
-# =========================================================
+st.title("📄 Invoice Data Extraction")
 
-st.title("📄 AI Invoice OCR Engine")
+st.write("Upload one or multiple invoices.")
 
-st.markdown("---")
-
-# =========================================================
+# =========================================
 # FILE UPLOAD
-# =========================================================
+# =========================================
 
-uploaded_pdfs = st.file_uploader(
-    "Upload Invoice PDFs",
-    type=["pdf"],
+uploaded_files = st.file_uploader(
+    "Upload Invoices",
+    type=["pdf", "png", "jpg", "jpeg"],
     accept_multiple_files=True
 )
 
-# =========================================================
+# =========================================
 # PROCESS
-# =========================================================
+# =========================================
 
-if uploaded_pdfs:
+if uploaded_files:
 
-    st.success(f"{len(uploaded_pdfs)} PDFs Uploaded")
+    all_data = []
 
-    if st.button("🚀 Process Invoices"):
+    progress = st.progress(0)
 
-        with st.spinner("Processing PDFs..."):
+    for index, file in enumerate(uploaded_files):
 
-            df = process_invoice_pdfs(uploaded_pdfs)
+        st.write(f"Processing: {file.name}")
 
-        # =================================================
-        # SHOW OUTPUT
-        # =================================================
+        text = ""
 
-        st.subheader("✅ Extracted Invoice Data")
+        # PDF
+        if file.type == "application/pdf":
+            text = extract_text_from_pdf(file)
 
-        st.dataframe(
-            df,
-            use_container_width=True
-        )
+        # IMAGE
+        else:
+            image = Image.open(file)
+            text = extract_text_from_image(image)
 
-        # =================================================
-        # DOWNLOAD EXCEL
-        # =================================================
+        # Extract fields
+        data = extract_invoice_data(text)
 
-        output = BytesIO()
+        data["File Name"] = file.name
 
-        with pd.ExcelWriter(
-            output,
-            engine='xlsxwriter'
-        ) as writer:
+        all_data.append(data)
 
-            df.to_excel(
-                writer,
-                index=False,
-                sheet_name='Invoices'
-            )
+        progress.progress((index + 1) / len(uploaded_files))
 
-            worksheet = writer.sheets['Invoices']
+    # =========================================
+    # DATAFRAME
+    # =========================================
 
-            for i, col in enumerate(df.columns):
+    df = pd.DataFrame(all_data)
 
-                max_len = max(
-                    df[col].astype(str).map(len).max(),
-                    len(col)
-                ) + 5
+    st.success("Invoices Processed Successfully")
 
-                worksheet.set_column(
-                    i,
-                    i,
-                    max_len
-                )
+    st.dataframe(df)
 
-        output.seek(0)
+    # =========================================
+    # EXCEL DOWNLOAD
+    # =========================================
 
-        st.download_button(
-            label="📥 Download Excel",
-            data=output,
-            file_name="invoice_output.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Invoices")
+
+    excel_data = output.getvalue()
+
+    st.download_button(
+        label="📥 Download Excel",
+        data=excel_data,
+        file_name="invoice_output.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
