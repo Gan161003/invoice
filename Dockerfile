@@ -1,16 +1,11 @@
+# Dockerfile
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Linux dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    poppler-utils \
-    libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
-    libgl1 \
-    libgomp1 \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
@@ -18,12 +13,22 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python packages
+# Install packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
+# Copy files
 COPY . .
+
+# Streamlit config
+RUN mkdir -p /root/.streamlit
+
+RUN echo "\
+[server]\n\
+port = 8501\n\
+address = '0.0.0.0'\n\
+headless = true\n\
+" > /root/.streamlit/config.toml
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "app.py"]
