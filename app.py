@@ -1,96 +1,177 @@
-import streamlit as st
-import pandas as pd
-from io import BytesIO
+# invoice_processing.py
 
-from invoice_processing import (
-    extract_text_from_pdf,
-    extract_text_from_image,
-    extract_invoice_data
-)
+import re
+import fitz
+import pdfplumber
 
-from PIL import Image
+# =====================================================
+# PDF TEXT EXTRACTION
+# =====================================================
 
-# =========================================
-# PAGE CONFIG
-# =========================================
+def extract_text_from_pdf(pdf_file):
 
-st.set_page_config(
-    page_title="Invoice Extraction App",
-    layout="wide"
-)
+    text = ""
 
-st.title("📄 Invoice Data Extraction")
-
-st.write("Upload one or multiple invoices.")
-
-# =========================================
-# FILE UPLOAD
-# =========================================
-
-uploaded_files = st.file_uploader(
-    "Upload Invoices",
-    type=["pdf", "png", "jpg", "jpeg"],
-    accept_multiple_files=True
-)
-
-# =========================================
-# PROCESS
-# =========================================
-
-if uploaded_files:
-
-    all_data = []
-
-    progress = st.progress(0)
-
-    for index, file in enumerate(uploaded_files):
-
-        st.write(f"Processing: {file.name}")
-
-        text = ""
-
-        # PDF
-        if file.type == "application/pdf":
-            text = extract_text_from_pdf(file)
-
-        # IMAGE
-        else:
-            image = Image.open(file)
-            text = extract_text_from_image(image)
-
-        # Extract fields
-        data = extract_invoice_data(text)
-
-        data["File Name"] = file.name
-
-        all_data.append(data)
-
-        progress.progress((index + 1) / len(uploaded_files))
+    # Read PDF bytes
+    pdf_bytes = pdf_file.read()
 
     # =========================================
-    # DATAFRAME
+    # METHOD 1 - PYMUPDF
     # =========================================
 
-    df = pd.DataFrame(all_data)
+    try:
 
-    st.success("Invoices Processed Successfully")
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    st.dataframe(df)
+        for page in doc:
+
+            text += page.get_text()
+
+    except:
+        pass
 
     # =========================================
-    # EXCEL DOWNLOAD
+    # METHOD 2 - PDFPLUMBER FALLBACK
     # =========================================
 
-    output = BytesIO()
+    if len(text.strip()) < 20:
 
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Invoices")
+        try:
 
-    excel_data = output.getvalue()
+            pdf_file.seek(0)
 
-    st.download_button(
-        label="📥 Download Excel",
-        data=excel_data,
-        file_name="invoice_output.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+            with pdfplumber.open(pdf_file) as pdf:
+
+                for page in pdf.pages:
+
+                    page_text = page.extract_text()
+
+                    if page_text:
+                        text += page_text + "\n"
+
+        except:
+            pass
+
+    return text
+
+
+# =====================================================
+# FIELD EXTRACTION
+# =====================================================
+
+def extract_invoice_data(text):
+
+    data = {}
+
+    # =========================================
+    # INVOICE NUMBER
+    # =========================================
+
+    invoice_patterns = [
+
+        r"Invoice\s*No[:\-]?\s*([A-Z0-9\-\/]+)",
+        r"Invoice\s*#[:\-]?\s*([A-Z0-9\-\/]+)",
+        r"Inv\s*No[:\-]?\s*([A-Z0-9\-\/]+)"
+
+    ]
+
+    invoice_no = ""
+
+    for pattern in invoice_patterns:
+
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if match:
+
+            invoice_no = match.group(1)
+
+            break
+
+    # =========================================
+    # DATE
+    # =========================================
+
+    date_patterns = [
+
+        r"\b\d{2}/\d{2}/\d{4}\b",
+        r"\b\d{2}-\d{2}-\d{4}\b",
+        r"\b\d{2}\.\d{2}\.\d{2024}\b"
+
+    ]
+
+    invoice_date = ""
+
+    for pattern in date_patterns:
+
+        match = re.search(pattern, text)
+
+        if match:
+
+            invoice_date = match.group(0)
+
+            break
+
+    # =========================================
+    # GST NUMBER
+    # =========================================
+
+    gst_pattern = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z0-9]\b"
+
+    gst_match = re.search(gst_pattern, text)
+
+    gst_number = gst_match.group(0) if gst_match else ""
+
+    # =========================================
+    # TOTAL AMOUNT
+    # =========================================
+
+    amount_patterns = [
+
+        r"Grand\s*Total[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
+        r"Total\s*Amount[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
+        r"Invoice\s*Value[:\-]?\s*₹?\s*([\d,]+\.\d{2})",
+        r"Net\s*Amount[:\-]?\s*₹?\s*([\d,]+\.\d{2})"
+
+    ]
+
+    total_amount = ""
+
+    for pattern in amount_patterns:
+
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if match:
+
+            total_amount = match.group(1)
+
+            break
+
+    # =========================================
+    # VENDOR NAME
+    # =========================================
+
+    lines = text.split("\n")
+
+    vendor_name = ""
+
+    for line in lines[:10]:
+
+        line = line.strip()
+
+        if len(line) > 5:
+
+            vendor_name = line
+
+            break
+
+    # =========================================
+    # STORE DATA
+    # =========================================
+
+    data["Vendor Name"] = vendor_name
+    data["Invoice Number"] = invoice_no
+    data["Invoice Date"] = invoice_date
+    data["GST Number"] = gst_number
+    data["Total Amount"] = total_amount
+
+    return data
