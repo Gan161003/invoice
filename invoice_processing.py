@@ -1,217 +1,121 @@
 import re
+import cv2
+import numpy as np
 import pandas as pd
-from pdf2image import convert_from_bytes
+import pdfplumber
+
+from PIL import Image
 from paddleocr import PaddleOCR
+from pdf2image import convert_from_bytes
 
-# =========================================================
-# LOAD OCR MODEL
-# =========================================================
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
-ocr = PaddleOCR(
-    use_angle_cls=True,
-    lang='en'
-)
 
-# =========================================================
-# KEYWORDS
-# =========================================================
+# =========================================
+# OCR IMAGE
+# =========================================
 
-FIELD_KEYWORDS = {
+def extract_text_from_image(image):
+    image_np = np.array(image)
 
-    "Invoice Num": [
-        "invoice no",
-        "invoice num",
-        "invoice number"
-    ],
+    result = ocr.ocr(image_np)
 
-    "PO Num": [
-        "po no",
-        "po num",
-        "purchase order",
-        "po number"
-    ],
+    text = ""
 
-    "Taxable Amount": [
-        "taxable amount",
-        "subtotal",
-        "net amount"
-    ],
+    for line in result:
+        for word in line:
+            text += word[1][0] + " "
 
-    "Total Payable (A+B)": [
-        "total payable",
-        "grand total",
-        "invoice total",
-        "amount due"
-    ]
-}
+    return text
 
-# =========================================================
-# REGEX PATTERNS
-# =========================================================
 
-AMOUNT_PATTERN = r'[\d,]+\.\d{2}'
+# =========================================
+# OCR PDF
+# =========================================
 
-PO_PATTERN = r'PO\/[\w\-\/]+'
+def extract_text_from_pdf(pdf_file):
 
-# =========================================================
-# OCR TEXT EXTRACTION
-# =========================================================
+    text = ""
 
-def extract_text_from_pdf(uploaded_file):
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
 
-    pdf_bytes = uploaded_file.read()
+                if page_text:
+                    text += page_text + "\n"
 
-    images = convert_from_bytes(pdf_bytes)
+    except:
+        pass
 
-    full_text = []
+    if len(text.strip()) > 20:
+        return text
+
+    images = convert_from_bytes(pdf_file.read())
 
     for image in images:
+        text += extract_text_from_image(image)
 
-        result = ocr.ocr(image)
+    return text
 
-        if result and result[0]:
 
-            for line in result[0]:
+# =========================================
+# FIELD EXTRACTION
+# =========================================
 
-                text = line[1][0]
+def extract_invoice_data(text):
 
-                full_text.append(text)
+    data = {}
 
-    return "\n".join(full_text)
+    # Invoice Number
+    invoice_patterns = [
+        r"Invoice\s*No[:\-]?\s*(\S+)",
+        r"Invoice\s*#[:\-]?\s*(\S+)",
+        r"INV[- ]?\d+"
+    ]
 
-# =========================================================
-# FIND FIELD LINE
-# =========================================================
+    invoice_no = ""
 
-def find_line(text, keywords):
+    for pattern in invoice_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
 
-    lines = text.split("\n")
+        if match:
+            invoice_no = match.group(1) if match.groups() else match.group(0)
+            break
 
-    for line in lines:
+    # Date
+    date_pattern = r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"
 
-        lower_line = line.lower()
+    date_match = re.search(date_pattern, text)
 
-        for keyword in keywords:
+    invoice_date = date_match.group(0) if date_match else ""
 
-            if keyword in lower_line:
+    # GST
+    gst_pattern = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z0-9]\b"
 
-                return line
+    gst_match = re.search(gst_pattern, text)
 
-    return ""
+    gst = gst_match.group(0) if gst_match else ""
 
-# =========================================================
-# CLEAN AMOUNT
-# =========================================================
+    # Total Amount
+    amount_patterns = [
+        r"Grand Total\s*[:\-]?\s*([\d,]+\.\d{2})",
+        r"Total Amount\s*[:\-]?\s*([\d,]+\.\d{2})",
+        r"Net Amount\s*[:\-]?\s*([\d,]+\.\d{2})"
+    ]
 
-def clean_amount(value):
+    total_amount = ""
 
-    if not value:
+    for pattern in amount_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
 
-        return ""
+        if match:
+            total_amount = match.group(1)
+            break
 
-    match = re.search(
-        AMOUNT_PATTERN,
-        value
-    )
+    data["Invoice Number"] = invoice_no
+    data["Invoice Date"] = invoice_date
+    data["GST Number"] = gst
+    data["Total Amount"] = total_amount
 
-    if match:
-
-        return match.group()
-
-    return value
-
-# =========================================================
-# CLEAN PO
-# =========================================================
-
-def clean_po(value):
-
-    match = re.search(
-        PO_PATTERN,
-        value,
-        re.IGNORECASE
-    )
-
-    if match:
-
-        return match.group()
-
-    return value
-
-# =========================================================
-# EXTRACT FIELD VALUE
-# =========================================================
-
-def extract_field_value(field, line):
-
-    if not line:
-
-        return ""
-
-    if ":" in line:
-
-        value = line.split(":")[-1].strip()
-
-    else:
-
-        value = line.strip()
-
-    if field in [
-        "Taxable Amount",
-        "Total Payable (A+B)"
-    ]:
-
-        value = clean_amount(value)
-
-    if field == "PO Num":
-
-        value = clean_po(value)
-
-    return value
-
-# =========================================================
-# PROCESS PDFS
-# =========================================================
-
-def process_invoice_pdfs(invoice_files):
-
-    final_data = []
-
-    for file in invoice_files:
-
-        try:
-
-            file.seek(0)
-
-            full_text = extract_text_from_pdf(file)
-
-            row = {}
-
-            for field, keywords in FIELD_KEYWORDS.items():
-
-                matched_line = find_line(
-                    full_text,
-                    keywords
-                )
-
-                value = extract_field_value(
-                    field,
-                    matched_line
-                )
-
-                row[field] = value
-
-            row["File Name"] = file.name
-
-            final_data.append(row)
-
-        except Exception as e:
-
-            final_data.append({
-                "File Name": file.name,
-                "Error": str(e)
-            })
-
-    df = pd.DataFrame(final_data)
-
-    return df
+    return data
