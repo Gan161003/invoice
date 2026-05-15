@@ -12,15 +12,19 @@ def extract_text_from_pdf(pdf_file):
 
     text = ""
 
+    # Read PDF bytes
     pdf_bytes = pdf_file.read()
 
-    # -----------------------------------------
-    # METHOD 1 : PYMUPDF
-    # -----------------------------------------
+    # ---------------------------------------------
+    # METHOD 1 : PyMuPDF
+    # ---------------------------------------------
 
     try:
 
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        doc = fitz.open(
+            stream=pdf_bytes,
+            filetype="pdf"
+        )
 
         for page in doc:
 
@@ -29,9 +33,9 @@ def extract_text_from_pdf(pdf_file):
     except:
         pass
 
-    # -----------------------------------------
-    # METHOD 2 : PDFPLUMBER FALLBACK
-    # -----------------------------------------
+    # ---------------------------------------------
+    # METHOD 2 : pdfplumber fallback
+    # ---------------------------------------------
 
     if len(text.strip()) < 20:
 
@@ -71,14 +75,18 @@ def clean_amount(value):
 
 
 # =====================================================
-# FIND FIRST MATCH
+# FIND MATCH
 # =====================================================
 
 def find_match(patterns, text):
 
     for pattern in patterns:
 
-        match = re.search(pattern, text, re.IGNORECASE)
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE
+        )
 
         if match:
 
@@ -110,7 +118,10 @@ def extract_invoice_data(text):
 
     ]
 
-    invoice_no = find_match(invoice_patterns, text)
+    invoice_no = find_match(
+        invoice_patterns,
+        text
+    )
 
     # =================================================
     # PO NUMBER
@@ -124,7 +135,10 @@ def extract_invoice_data(text):
 
     ]
 
-    po_number = find_match(po_patterns, text)
+    po_number = find_match(
+        po_patterns,
+        text
+    )
 
     # =================================================
     # DATE
@@ -139,7 +153,10 @@ def extract_invoice_data(text):
 
     ]
 
-    invoice_date = find_match(date_patterns, text)
+    invoice_date = find_match(
+        date_patterns,
+        text
+    )
 
     # =================================================
     # GST NUMBER
@@ -147,7 +164,10 @@ def extract_invoice_data(text):
 
     gst_pattern = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z0-9]\b"
 
-    gst_match = re.search(gst_pattern, text)
+    gst_match = re.search(
+        gst_pattern,
+        text
+    )
 
     gst_number = gst_match.group(0) if gst_match else ""
 
@@ -165,7 +185,10 @@ def extract_invoice_data(text):
     ]
 
     amount_without_tax = clean_amount(
-        find_match(subtotal_patterns, text)
+        find_match(
+            subtotal_patterns,
+            text
+        )
     )
 
     # =================================================
@@ -181,7 +204,10 @@ def extract_invoice_data(text):
     ]
 
     tax_amount = clean_amount(
-        find_match(tax_patterns, text)
+        find_match(
+            tax_patterns,
+            text
+        )
     )
 
     # =================================================
@@ -198,7 +224,10 @@ def extract_invoice_data(text):
     ]
 
     total_amount = clean_amount(
-        find_match(total_patterns, text)
+        find_match(
+            total_patterns,
+            text
+        )
     )
 
     # =================================================
@@ -228,7 +257,10 @@ def extract_invoice_data(text):
 
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
-    email_match = re.search(email_pattern, text)
+    email_match = re.search(
+        email_pattern,
+        text
+    )
 
     email = email_match.group(0) if email_match else ""
 
@@ -238,7 +270,10 @@ def extract_invoice_data(text):
 
     phone_pattern = r"\b\d{10}\b"
 
-    phone_match = re.search(phone_pattern, text)
+    phone_match = re.search(
+        phone_pattern,
+        text
+    )
 
     phone = phone_match.group(0) if phone_match else ""
 
