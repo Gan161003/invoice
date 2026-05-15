@@ -802,14 +802,16 @@ FIELD_LABELS = {
         "invoice #",
         "bill no",
         "bill number",
-        "reference no"
+        "reference no",
+        "invoice num"
     ],
 
     "po_number": [
         "po no",
         "po number",
         "purchase order",
-        "purchase order no"
+        "purchase order no",
+        "po num"
     ],
 
     "invoice_date": [
