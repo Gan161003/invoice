@@ -912,36 +912,69 @@ def similarity(a, b):
 # =====================================================
 # FIND VALUE NEAR LABEL
 # =====================================================
-
 def find_value_near_label(text, possible_labels):
 
     lines = text.split("\n")
 
     for line in lines:
 
-        line_clean = line.lower().strip()
+        clean_line = line.lower().strip()
+
+        # normalize spaces
+        clean_line = re.sub(r"\s+", " ", clean_line)
 
         for label in possible_labels:
 
-            score = similarity(
-                line_clean[:len(label) + 10],
-                label
-            )
+            label = label.lower().strip()
 
-            if score > 0.75:
+            # DIRECT LABEL MATCH
+            if label in clean_line:
 
-                # Try after colon
+                # -----------------------------------
+                # AFTER :
+                # -----------------------------------
+
                 if ":" in line:
 
-                    value = line.split(":")[-1].strip()
+                    parts = line.split(":", 1)
 
-                    if value:
-                        return value
+                    if len(parts) > 1:
 
-                # Try after dash
+                        value = parts[1].strip()
+
+                        if value:
+                            return value
+
+                # -----------------------------------
+                # AFTER -
+                # -----------------------------------
+
                 if "-" in line:
 
-                    value = line.split("-")[-1].strip()
+                    parts = line.split("-", 1)
+
+                    if len(parts) > 1:
+
+                        value = parts[1].strip()
+
+                        if value:
+                            return value
+
+                # -----------------------------------
+                # AFTER LABEL
+                # -----------------------------------
+
+                pattern = re.escape(label) + r"\s*(.*)"
+
+                match = re.search(
+                    pattern,
+                    clean_line,
+                    re.IGNORECASE
+                )
+
+                if match:
+
+                    value = match.group(1).strip()
 
                     if value:
                         return value
