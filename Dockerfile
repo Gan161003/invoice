@@ -4,7 +4,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -13,13 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
-# Install packages
+# Install python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy files
+# Copy app files
 COPY . .
 
-# Streamlit config
+# Streamlit configuration
 RUN mkdir -p /root/.streamlit
 
 RUN echo "\
