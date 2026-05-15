@@ -993,8 +993,9 @@ def extract_date(value):
         r"\d{2}/\d{2}/\d{4}",
         r"\d{2}-\d{2}-\d{4}",
         r"\d{4}-\d{2}-\d{2}",
-        r"\d{1,2}\s+[A-Za-z]{3}\s+\d{4}"
-
+        r"\d{1,2}\s+[A-Za-z]{3}\s+\d{4}",
+        r"\d{1,2}\s+[A-Za-z]+\s+\d{4}"
+    
     ]
 
     for pattern in date_patterns:
