@@ -918,57 +918,38 @@ def find_value_near_label(text, possible_labels):
 
     for line in lines:
 
-        clean_line = line.lower().strip()
+        original_line = line.strip()
 
-        # normalize spaces
+        clean_line = original_line.lower()
+
         clean_line = re.sub(r"\s+", " ", clean_line)
 
         for label in possible_labels:
 
             label = label.lower().strip()
 
-            # DIRECT LABEL MATCH
+            # -----------------------------------------
+            # CHECK LABEL EXISTS
+            # -----------------------------------------
+
             if label in clean_line:
 
-                # -----------------------------------
-                # AFTER :
-                # -----------------------------------
+                # -----------------------------------------
+                # REGEX EXTRACTION
+                # Handles:
+                # Invoice Num : MM25D3318
+                # Invoice Num- MM25D3318
+                # Invoice Num MM25D3318
+                # -----------------------------------------
 
-                if ":" in line:
-
-                    parts = line.split(":", 1)
-
-                    if len(parts) > 1:
-
-                        value = parts[1].strip()
-
-                        if value:
-                            return value
-
-                # -----------------------------------
-                # AFTER -
-                # -----------------------------------
-
-                if "-" in line:
-
-                    parts = line.split("-", 1)
-
-                    if len(parts) > 1:
-
-                        value = parts[1].strip()
-
-                        if value:
-                            return value
-
-                # -----------------------------------
-                # AFTER LABEL
-                # -----------------------------------
-
-                pattern = re.escape(label) + r"\s*(.*)"
+                pattern = (
+                    re.escape(label)
+                    + r"\s*[:\-]?\s*(.+)"
+                )
 
                 match = re.search(
                     pattern,
-                    clean_line,
+                    original_line,
                     re.IGNORECASE
                 )
 
@@ -976,7 +957,8 @@ def find_value_near_label(text, possible_labels):
 
                     value = match.group(1).strip()
 
-                    if value:
+                    # avoid returning only :
+                    if value and value != ":":
                         return value
 
     return ""
